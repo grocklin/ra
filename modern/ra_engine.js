@@ -134,7 +134,7 @@
       for (let p = 1; p <= N; p++) {
         const v = getVariant(opts.variants[p - 1]);
         V.push(v);
-        if (human && p === 1) { TestPhar.push([0, ...SET1].map(f32)); pharSet.push(1); continue; }
+        if (human && p === 1 && !(v.P && v.P.phar)) { TestPhar.push([0, ...SET1].map(f32)); pharSet.push(1); continue; }
         if (v.phar) { TestPhar.push([0, ...v.phar()]); pharSet.push(0); continue; }
         let s = opts.pharSets && opts.pharSets[p - 1];
         if (!s) {
@@ -673,7 +673,7 @@
     }
     function sunVal(p, sun) { return AllSunsAreWorth[sun] + SunsNextRoundAll[sun]; }   // + RaAdd() = 0
 
-    let lastGod = 0;
+    let lastGod = 0, lastGodVal = 0, lastSkip = false;
     function tryGod(floodOnly) {
       if (AuctionBlock.length === 0 || Force || TilesInHand[Turn][God] < 1) return false;
       const TempBlock = AuctionBlock, TilesToGod = new Float32Array(9);
@@ -701,7 +701,7 @@
           TilesInHand[Turn][t]++;
           AuctionBlock = TempBlock.slice(0, best - 1) + TempBlock.slice(best);
           Force = false;
-          lastGod = t;
+          lastGod = t; lastGodVal = TilesToGod[best];
           if (analyze) {
             log.gods.push({ epoch: Epoch, player: Turn, tile: t, floodOnly });
             if (t === Pharaoh) addPharLot(Turn, TilesInHand[Turn][Pharaoh] - before, 'god', null);
@@ -729,7 +729,7 @@
       for (let X = 1; X <= N; X++) if (Suns[X][4] > HighestSun) HighestSun = Suns[X][4];
       let UsedGod = false;
       // "I hold the highest sun: keep drawing" rule. Knobs: skip (value margin), skipRa (Ra tiles that must remain, VB: more than 1)
-      const skip = Suns[Turn][4] === HighestSun && (MaxRa - RaTrack) > (v.P.skipRa != null ? Math.round(v.P.skipRa) : 1) &&
+      const skip = lastSkip = Suns[Turn][4] === HighestSun && (MaxRa - RaTrack) > (v.P.skipRa != null ? Math.round(v.P.skipRa) : 1) &&
         BlockIsWorth[Turn] > sunVal(0, HighestSun) + (v.P.skip || 0);
 
       const bargain = () => {
@@ -1348,7 +1348,42 @@
     const TILE_ARTICLE = [null, 'a Pharaoh', 'a Nile', 'a Flood', 'a God', 'an Astronomy', 'an Art', 'an Agriculture', 'a Writing', 'a Religion', 'a Gold',
       'an Obelisk', 'a Palace', 'a Sphinx', 'a Pyramid', 'a Fortress', 'a Step Pyramid', 'a Temple', 'a Statues', 'a Funeral', 'a Drought', 'an Unrest', 'an Earthquake'];
     const tenth = x => vbStr(Math.floor(10 * x) / 10);
+    function snapshotAll() {
+      return { ai: snapshotAI(), T: TilesInHand.map(r => r.slice()), S: Suns.map(r => r.slice()), Sc: Scores.slice(), B: Bids.slice(),
+        bag: TilesInBag, ra: RaTrack, f: Force, turn: Turn, sob: SunOnBlock, r: rng.s, lg: lastGod, lgv: lastGodVal, ls: lastSkip,
+        tst: TempSunTotal.slice(), smin: SunMin, smid: SunMid, calls: JSON.stringify(log.calls) };
+    }
+    function restoreAll(z) {
+      restoreAI(z.ai);
+      for (let i = 0; i < TilesInHand.length; i++) TilesInHand[i] = z.T[i];
+      for (let i = 0; i < Suns.length; i++) Suns[i] = z.S[i];
+      for (let i = 0; i < Scores.length; i++) Scores[i] = z.Sc[i];
+      for (let i = 0; i < Bids.length; i++) Bids[i] = z.B[i];
+      TilesInBag = z.bag; RaTrack = z.ra; Force = z.f; Turn = z.turn; SunOnBlock = z.sob; rng.s = z.r; lastGod = z.lg; lastGodVal = z.lgv; lastSkip = z.ls;
+      TempSunTotal = z.tst; SunMin = z.smin; SunMid = z.smid; log.calls = JSON.parse(z.calls);
+    }
+    // Turn hint when seat 1 is an improved AI: ask that AI what it would do here.
+    function hintAdvice() {
+      const z = snapshotAll();
+      let r, worth;
+      try { r = ComputerTakeTurn(); worth = BlockIsWorth[1] - SunOnBlockIsWorth[1]; adviceSkip = lastSkip; adviceGodVal = lastGodVal; } finally { restoreAll(z); }
+      const valueLine = AuctionBlock.length ? '\n\nThe tiles on the block are worth about' + tenth(worth) + ' points to you.' : '';
+      if (r.type === 'god') return 'You should exchange your God tile for ' + TILE_ARTICLE[r.tile] + ' tile.  It is worth about' + tenth(adviceGodVal) + ' points to you.';
+      if (r.type === 'draw' || r.type === 'epochEnd' || (r.type === 'auction' && r.cause === 'ra')) {
+        return (adviceSkip ? 'You should draw a tile.  You hold the highest sun, so you can let the slate grow and still win it later.'
+          : 'You should draw a tile.  You can lengthen the slate and possibly win it later.') + valueLine;
+      }
+      return {
+        force: 'You should call Ra.  Another player is going to outbid you no matter what.\nDrawing tiles only gives them more points.',
+        auto: 'You should call Ra.  Another player will outbid you if you draw more tiles.',
+        defense: 'You should call Ra.  The set is more valuable to another player than to you,\nand you can force them to take it now rather than letting it grow.',
+        bargain: 'You should call Ra.  The set is a good bargain for you.',
+        full: 'You must call Ra because the slate is full.',
+      }[r.cause] + (r.cause === 'full' ? '' : valueLine);
+    }
+    let adviceSkip = false, adviceGodVal = 0;
     function hint(kind, forced) {
+      if (kind === 'turn' && V[1].P && V[1].P.nnet) return hintAdvice();
       const z = snapshotAI();
       try { return kind === 'bid' ? hintBid(forced) : hintTurn(); } finally { restoreAI(z); }
     }

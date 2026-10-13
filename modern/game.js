@@ -35,7 +35,8 @@
     async function newGame(players, seed) {
       const my = ++token;
       if (seed == null) seed = Math.floor(Math.random() * 1e9);
-      const variants = settings.ai ? [ 'v1.2.0' ].concat(new Array(players - 1).fill(settings.ai)) : undefined;   // default: original v1.2.0 AIs
+      // default: original v1.2.0 AIs. With an improved AI, your seat is modeled by it too (hints come from it, and the AIs predict your bids with it).
+      const variants = settings.ai ? new Array(players).fill(settings.ai) : undefined;
       g = E.createGame({ players, seed, human: true, easy: settings.easy, names: settings.names.slice(), analyze: false, variants });
       ui.newGame && ui.newGame({ players, seed });
       ui.render();
