@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ra</title>
+<link rel="icon" href="icon.png">
+<style>
+  :root { --bg: #f3e9d2; --panel: #fffaf0; --ink: #1f2430; --muted: #6e6455; --lapis: #1d3557; --gold: #c9971c; --line: #e3d3b2; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #10151e; --panel: #19212e; --ink: #ece5d6; --muted: #a59b88; --lapis: #9dbce8; --gold: #e2b23a; --line: #2d3848; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 40px 16px; }
+  h1 { font: 700 44px/1 Georgia, "Times New Roman", serif; letter-spacing: .12em; margin: 0 0 6px; }
+  h1 span { color: var(--gold); }
+  p.lead { color: var(--muted); margin: 0 0 28px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  a.card { display: block; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 20px; color: inherit; text-decoration: none; box-shadow: 0 4px 14px rgba(60,40,10,.08); }
+  a.card:hover { border-color: var(--gold); }
+  a.card h2 { margin: 0 0 6px; font-size: 20px; color: var(--lapis); }
+  a.card p { margin: 0; color: var(--muted); font-size: 15px; }
+  footer { margin-top: 32px; color: var(--muted); font-size: 13.5px; }
+</style>
+</head>
+<body>
+<main>
+  <h1><span>☀</span> Ra</h1>
+  <p class="lead">Reiner Knizia's auction game, against 2–4 computer opponents. A web port of a Visual Basic program written in 2006–08, with a neural-network AI, retuned in 2026.</p>
+  <div class="cards">
+    <a class="card" href="modern/"><h2>Modern version</h2><p>Redesigned for phones and desktops, with dark mode, a scoring breakdown, and the improved AI by default.</p></a>
+    <a class="card" href="classic/"><h2>Classic version</h2><p>The original 2008 Windows interface, rebuilt control by control. Uses the original AI by default (switch under Options).</p></a>
+  </div>
+  <footer>Ra was designed by Reiner Knizia (Alea, 1999). This is a fan-made program; tile images come from the 2005 Uberplay edition.</footer>
+</main>
+</body>
+</html>
