@@ -55,7 +55,7 @@ h1, h2 { margin: 0; }
 .btn.danger { background: var(--red); border-color: var(--red); color: #fff; }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 .btn.sunbtn { display: inline-flex; align-items: center; gap: 6px; }
-#hintBox { margin: 8px 16px 0; padding: 10px 14px; background: color-mix(in srgb, var(--gold-2) 22%, var(--panel)); border: 1px solid var(--gold); border-radius: 10px; white-space: pre-wrap; font-size: 14px; display: flex; gap: 10px; align-items: flex-start; }
+#hintBox { flex: 1 1 100%; margin: 0; max-height: 40vh; overflow: auto; padding: 10px 14px; background: color-mix(in srgb, var(--gold-2) 22%, var(--panel)); border: 1px solid var(--gold); border-radius: 10px; white-space: pre-wrap; font-size: 14px; display: flex; gap: 10px; align-items: flex-start; }
 #hintBox button { margin-left: auto; background: none; border: 0; cursor: pointer; font-size: 16px; color: var(--muted); }
 
 /* ---- table layout ---- */
@@ -63,7 +63,7 @@ h1, h2 { margin: 0; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px; }
 .panel-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
 .panel-head h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
-#blockPanel { position: sticky; top: 76px; }
+#blockPanel { position: sticky; top: calc(var(--banner-h, 66px) + 10px); }
 .block-row { display: flex; flex-direction: column; gap: 10px; align-items: center; }
 .sun-on-block { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 12px; color: var(--muted); }
 .slots { display: grid; grid-template-columns: repeat(4, 60px); gap: 7px; }
@@ -124,7 +124,7 @@ h1, h2 { margin: 0; }
 .you.turn { }
 
 /* ---- feed ---- */
-#feedPanel { position: sticky; top: 76px; max-height: calc(100vh - 100px - var(--dock-h)); display: flex; flex-direction: column; }
+#feedPanel { position: sticky; top: calc(var(--banner-h, 66px) + 10px); max-height: calc(100vh - var(--banner-h, 66px) - 34px - var(--dock-h)); display: flex; flex-direction: column; }
 #feed { list-style: none; margin: 0; padding: 0; overflow: auto; font-size: 13.5px; display: flex; flex-direction: column-reverse; }
 #feed li { padding: 4px 0; border-bottom: 1px solid var(--line); display: flex; gap: 6px; }
 #feed li .who { font-weight: 700; }
@@ -143,6 +143,8 @@ h1, h2 { margin: 0; }
 .score-table tr.winner-row td { font-weight: 800; background: color-mix(in srgb, var(--gold-2) 22%, transparent); }
 .score-table td.neg { color: var(--red); }
 .score-table td.tot { font-weight: 800; }
+#dialog p.ended { margin: 0 0 10px; padding: 8px 12px; border-radius: 10px; background: var(--panel-2); border-left: 4px solid var(--lapis-2); }
+#dialog p.nohints { margin: 6px 0 10px; padding: 8px 12px; border-radius: 10px; font-weight: 650; background: color-mix(in srgb, var(--gold-2) 30%, var(--panel)); border: 1px solid var(--gold); }
 .rules h3 { margin: 12px 0 4px; font-size: 15px; } .rules ul { margin: 4px 0; padding-left: 20px; } .rules p { margin: 6px 0; }
 .settings label { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); }
 .settings input[type=text] { flex: 1; font: inherit; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2); color: var(--ink); }
@@ -159,7 +161,7 @@ pre.history { white-space: pre-wrap; font: 14px/1.5 system-ui, -apple-system, "S
 /* ---- narrow screens ---- */
 @media (max-width: 1100px) {
   #table { grid-template-columns: minmax(250px, 300px) 1fr; }
-  #feedPanel { grid-column: 1 / -1; position: static; max-height: 220px; }
+  #feedPanel { grid-column: 1 / -1; position: static; max-height: 360px; }
 }
 @media (max-width: 760px) {
   body { font-size: 14px; }
@@ -185,5 +187,5 @@ pre.history { white-space: pre-wrap; font: 14px/1.5 system-ui, -apple-system, "S
   .you { gap: 8px 12px; }
   .you .sun { width: 38px; height: 38px; font-size: 15px; }
   .you .tiles { flex-basis: 100%; }
-  #feedPanel { max-height: 180px; }
+  #feedPanel { max-height: min(480px, 60vh); }
 }

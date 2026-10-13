@@ -11,7 +11,7 @@
 //   humanBid(ctx)  -> sun value, or 0 to pass
 //   discard(need)  -> array of tile numbers to discard ({civ, mon} owed)
 //   pause(kind, info)             'draw' | 'god' | 'auction': where VB showed Continue
-//   epochEnd(info)                after scoring (VB: Continue "Epoch 2" / Show History)
+//   epochEnd(info)                after scoring (VB: Continue "Epoch 2" / Show History); info.endedBy says who ended it and how
 (function (root) {
   'use strict';
   const E = (typeof module !== 'undefined') ? require('./ra_engine.js') : root.RA_ENGINE;
@@ -63,7 +63,7 @@
         await afterAuction(my);
       } else if (r.type === 'epochEnd') {
         ui.status(`${name(p)} has drawn a Ra tile.`, 'ra'); ui.render();
-        await epochEnd(my);
+        await epochEnd(my, { p, how: 'ra', blockCount: g.view().block.length });
       } else {
         ui.status(r.cause === 'ra' ? `${name(p)} has drawn a Ra tile.` : `${name(p)} has called Ra.`, 'ra');
         await auction(my, r.cause);
@@ -85,7 +85,7 @@
           g.advance();
         } else if (r.type === 'epochEnd') {
           ui.status(`${name(1)} has drawn a Ra tile.`, 'ra'); ui.render();
-          await epochEnd(my);
+          await epochEnd(my, { p: 1, how: 'ra', blockCount: g.view().block.length });
         } else {
           ui.status(`${name(1)} has drawn a Ra tile.`, 'ra');
           await auction(my, 'ra');
@@ -136,7 +136,7 @@
         const res = g.resolveAuction(1); ui.render();
         await doDiscard(my, res.need, true);
         ui.auctionDone && ui.auctionDone(res);
-        return afterAuction(my);
+        return afterAuction(my, f);
       } else {
         ui.status(`${name(f.winner)} won the auction with the ${f.bid}.`, 'auction');
       }
@@ -145,19 +145,21 @@
       const res = g.resolveAuction(f.winner);
       ui.auctionDone && ui.auctionDone(res);
       ui.render();
-      await afterAuction(my);
+      await afterAuction(my, f);
     }
 
-    async function afterAuction(my) {
-      if (g.epochOver()) await epochEnd(my); else g.advance();
+    // f: the auction just finished (the winner used their last face-up sun if the epoch is now over)
+    async function afterAuction(my, f) {
+      if (g.epochOver()) await epochEnd(my, f && f.winner ? { p: f.winner, how: 'suns', bid: f.bid } : null); else g.advance();
     }
 
-    async function epochEnd(my) {
+    // endedBy: { p, how: 'ra' (Ra track filled) | 'suns' (last face-up sun used), blockCount, bid }
+    async function epochEnd(my, endedBy) {
       g.scoreEpoch();
       const v = g.view();
       ui.status(v.over ? `${name(v.winner)} is the winner!` : `Epoch ${v.Epoch} has ended.`, 'epoch');
       ui.render();
-      await wait(my, { kind: 'epoch' }, ui.epochEnd({ epoch: v.Epoch, over: v.over, parts: v.lastEpochParts, scores: v.scores, added: v.scoreAdded, winner: v.winner }));
+      await wait(my, { kind: 'epoch' }, ui.epochEnd({ epoch: v.Epoch, over: v.over, parts: v.lastEpochParts, scores: v.scores, added: v.scoreAdded, winner: v.winner, endedBy: endedBy || null }));
       if (!v.over) { g.newEpoch(); ui.render(); }
     }
 

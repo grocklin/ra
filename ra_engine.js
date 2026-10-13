@@ -279,7 +279,7 @@
           n[TN] = n[TN] + (ScoreAfter - ScoreBefore);
         }
       }
-      if (easy && WhichP > 1) {
+      if (easyFor(WhichP)) {
         const E = EasyScrewUp(WhichP);
         n[TN] = E * n[TN] + (2 * (1 - E)) * n[TN] * aiRng();
       }
@@ -298,13 +298,15 @@
       for (X = 1; X <= SS; X++) s[ST] = s[ST] + f32(net[SG * (SS - 1) + X] * s[SG + X]);
       s[ST] = SunFinActive(s[ST]);
       if (s[ST] < 1) s[ST] = 1;
-      if (easy && WhichEpoch === Epoch && WhichPlayer > 1) {
+      if (WhichEpoch === Epoch && easyFor(WhichPlayer)) {
         const E = EasyScrewUp(WhichPlayer);
         s[ST] = E * s[ST] + 2 * (1 - E) * s[ST] * aiRng();
       }
     }
     // v1.2.0: EasyScrewUp = 0.55 in Easy mode, else 1.  v1.1.1: Const EasyScrewUp = 0.55 always.
-    function EasyScrewUp(p) { return V[p].base === 'v1.1.1' ? 0.55 : easy ? 0.55 : 1; }
+    function EasyScrewUp(p) { return V[p].base === 'v1.1.1' ? 0.55 : easyFor(p) ? 0.55 : 1; }
+    // Easy mode applies to the AI seats; the human's seat (hints) plays at full strength. A variant's params.easy overrides (simulations).
+    function easyFor(p) { const e = V[p] && V[p].P.easy; return e != null ? !!e : easy && !(human && p === 1); }
 
     // =============================================================================
     // Net inputs
@@ -690,7 +692,7 @@
       const best = TilesToGod[0];
       // general check in VB: "> 4 Or (EasyMode.Checked = True And x) > 3.5". VB quirk: precedence makes the second
       // term (True And CLng(x)) > 3.5, i.e. CLng(x) >= 4 in Easy mode and False otherwise.
-      if (TilesToGod[best] > (floodOnly ? 6 : (V[Turn].P.god != null ? V[Turn].P.god : 4)) || (!floodOnly && easy && cint(TilesToGod[best]) > 3.5)) {
+      if (TilesToGod[best] > (floodOnly ? 6 : (V[Turn].P.god != null ? V[Turn].P.god : 4)) || (!floodOnly && easyFor(Turn) && cint(TilesToGod[best]) > 3.5)) {
         AuctionBlock = TempBlock[best - 1];
         let High = 0;
         for (let X = 1; X <= N; X++) if (Suns[X][4] > 0 && BlockIsWorth[X] > BlockIsWorth[High]) High = X;
@@ -747,7 +749,7 @@
             callra = true; Force = true; why = 'bargain'; break;
           }
         }
-        if (easy && callra && aiRng() > EasyScrewUp(Turn)) { callra = false; Force = false; why = ''; }
+        if (easyFor(Turn) && callra && aiRng() > EasyScrewUp(Turn)) { callra = false; Force = false; why = ''; }
       };
 
       if (!skip) {
@@ -769,7 +771,7 @@
             }
           }
           // (2) AUTO
-          if ((!easy || MaxRa - RaTrack === 1) && !callra && BlockIsWorth[Turn] > AllSunsAreWorth[myTop] + (v.P.auto != null ? v.P.auto : 0.4) + SunsNextRoundAll[myTop]) {
+          if ((!easyFor(Turn) || MaxRa - RaTrack === 1) && !callra && BlockIsWorth[Turn] > AllSunsAreWorth[myTop] + (v.P.auto != null ? v.P.auto : 0.4) + SunsNextRoundAll[myTop]) {
             if (MaxRa - RaTrack === 1) { callra = true; Force = true; why = 'auto'; }
             else for (let X = 1; X <= N; X++) {
               if (X !== Turn && Suns[X][4] > myTop && BlockIsWorth[X] > sunVal(X, Suns[X][4]) + (v.P.autoOther != null ? v.P.autoOther : -2)) { callra = true; Force = true; why = 'auto'; break; }
@@ -842,7 +844,7 @@
         if (BlockIsWorth[X] > mbw) mbw = X;                 // VB quirk: compares a value with a seat index
       }
       if (Scores[mbw] > SumScore / N) {
-        for (let X = 1; X <= N; X++) BlockIsWorth[X] = BlockIsWorth[X] + catchK(X) * ((BlockIsWorth[mbw] - BlockIsWorth[X]) / (N - 1));
+        for (let X = 1; X <= N; X++) if (!easyFor(X)) BlockIsWorth[X] = BlockIsWorth[X] + catchK(X) * ((BlockIsWorth[mbw] - BlockIsWorth[X]) / (N - 1));
       }
 
       let cur = 0, old = 0;
@@ -1261,11 +1263,11 @@
     // StartAuctionBefore with seat 1 human: AIs after the caller bid now; returns what the human sees.
     function auctionStart(cause) {
       if (analyze) pendingRec = auctionRecordStart(cause);
-      if (!easy) {
+      {   // catch-up adjustment (not for Easy-mode seats)
         let SumScore = 0, mbw = 0;
         for (let X = 1; X <= N; X++) { SumScore += Scores[X]; if (BlockIsWorth[X] > mbw) mbw = X; }   // VB quirk (value vs index)
         if (Scores[mbw] > SumScore / N)
-          for (let X = 1; X <= N; X++) BlockIsWorth[X] = BlockIsWorth[X] + catchK(X) * ((BlockIsWorth[mbw] - BlockIsWorth[X]) / (N - 1));
+          for (let X = 1; X <= N; X++) if (!easyFor(X)) BlockIsWorth[X] = BlockIsWorth[X] + catchK(X) * ((BlockIsWorth[mbw] - BlockIsWorth[X]) / (N - 1));
       }
       let cur = 0, old = 0;
       for (let p = 1; p <= N; p++) {
@@ -1529,7 +1531,7 @@
     if (human) {
       const word = { 3: 'Three', 4: 'Four', 5: 'Five' }[N];
       const now = opts.now || new Date();
-      history = word + ' Player Ra Version 1.2.0\n' + (easy ? 'Easy Mode\n' : '') + 'Game started on ' + now.toLocaleDateString('en-US') +
+      history = word + ' Player Ra Version 2.0\n' + (easy ? 'Easy Mode\n' : '') + 'Game started on ' + now.toLocaleDateString('en-US') +
         ' at ' + now.toLocaleTimeString('en-US') + '\n--------------\n\n';
     }
 

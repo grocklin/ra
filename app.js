@@ -26,7 +26,7 @@
   const SPEEDS = { slow: 1300, normal: 700, fast: 250 };
 
   // ---- settings ----
-  const DEF = { name: 'Doris', easy: false, showScores: true, showFDSuns: true, speed: 'normal', players: 4, ai: 'improved' };
+  const DEF = { name: 'Doris', easy: false, showScores: true, showFDSuns: true, speed: 'normal', players: 4, ai: 'improved', showHints: true };
   let opt = Object.assign({}, DEF);
   try { Object.assign(opt, JSON.parse(localStorage.getItem('ra-modern') || '{}')); } catch (e) { /* defaults */ }
   const save = () => { try { localStorage.setItem('ra-modern', JSON.stringify(opt)); } catch (e) { /* ignore */ } };
@@ -35,7 +35,7 @@
   let mode = null;            // null | 'turn' | 'godpick' | 'godAgain' | 'bid' | 'discard' | 'wait' | 'result'
   let ctx = null, pending = null, waitingTurn = 0, resultText = '', inGame = false;
   let bubbles = {}, bidSun = {}, raSlot = false, chosen = [], need = null, hintText = '', godFromAgain = false;
-  let lastEpochInfo = null, endText = '', showBreakdown = false;
+  let resultAt = 0, lastEpochInfo = null, endText = '', showBreakdown = false, hintsUsed = 0;
   const resolve = v => { const p = pending; pending = null; mode = null; hintText = ''; if (p) p(v); render(); };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -66,9 +66,9 @@
       const ms = SPEEDS[opt.speed] || 700;
       if (kind === 'auction') {
         const v = flow.view();
-        if (info.winner) { bubbles[info.winner] = { t: 'Wins with ' + info.bid, c: 'win' }; resultText = `${info.winner === 1 ? 'You win' : v.names[info.winner - 1] + ' wins'} the lot with ${info.winner === 1 ? 'your' : 'a'} ${info.bid} and takes the ${v.SunOnBlock} sun.`; }
+        if (info.winner) { bubbles[info.winner] = { t: 'Wins with ' + info.bid, c: 'win' }; resultText = `${info.winner === 1 ? 'You win' : v.names[info.winner - 1] + ' wins'} the lot with ${info.winner === 1 ? 'your' : 'a'} ${info.bid} and take${info.winner === 1 ? '' : 's'} the ${v.SunOnBlock} sun.`; }
         else resultText = v.block.length === 8 ? 'Everyone passed. The full block is discarded.' : 'Everyone passed. The tiles stay on the block.';
-        mode = 'result'; render();
+        mode = 'result'; resultAt = performance.now(); render();
         await Promise.race([sleep(ms * 3), new Promise(r => { pending = r; })]);
         pending = null; mode = 'wait'; resultText = '';
       } else {
@@ -77,10 +77,11 @@
       }
     },
     async epochEnd(info) {
-      bubbles = {}; bidSun = {}; raSlot = false; lastEpochInfo = info; mode = 'wait'; endText = `Epoch ${info.epoch} has ended`; render();
+      bubbles = {}; bidSun = {}; raSlot = info.endedBy && info.endedBy.how === 'ra'; lastEpochInfo = info; mode = 'wait'; endText = `Epoch ${info.epoch} has ended`; render();
       await sleep(400);
       if (info.over) { inGame = false; mode = null; render(); showEpochDialog(info); return; }
       await showEpochDialog(info);
+      raSlot = false;
     },
   };
   const flow = RA_FLOW.createFlow(ui);
@@ -186,7 +187,7 @@
     renderPlayers(v);
     renderDock(v);
     const hb = $('#hintBox');
-    hb.hidden = !hintText;
+    hb.hidden = !hintText || !opt.showHints;
     if (hintText) { hb.innerHTML = ''; hb.append(h('span', {}, '💡'), h('span', {}, hintText), h('button', { 'aria-label': 'Close hint', onclick: () => { hintText = ''; render(); } }, '×')); }
   }
 
@@ -203,7 +204,7 @@
   function actBtn(label, onclick, cls = '', disabled = false, title = '') {
     return h('button', { class: 'btn ' + cls, onclick, disabled, title: title || null }, label);
   }
-  function hintBtn() { return actBtn('Hint', () => { const t = flow.hint(); if (t) { hintText = t; render(); } }, '', false, 'What would the AI do?'); }
+  function hintBtn() { return opt.showHints ? actBtn('Hint', () => { const t = flow.hint(); if (t) { hintsUsed++; hintText = t; render(); } }, '', false, 'What would the AI do?') : null; }
 
   function renderBanner(v) {
     const P = $('#prompt'), S = $('#subprompt'), A = $('#actions'), B = $('#banner');
@@ -215,7 +216,7 @@
     }
     if (v.over) {
       P.textContent = v.winner === 1 ? 'You win!' : `${v.names[v.winner - 1]} wins.`;
-      S.textContent = 'Final scores: ' + v.names.map((n, i) => `${i === 0 ? 'You' : n} ${v.scores[i]}`).join(' · ');
+      S.textContent = 'Final scores: ' + v.names.map((n, i) => `${i === 0 ? 'You' : n} ${v.scores[i]}`).join(' · ') + (hintsUsed ? '' : ' · 🎖 No hints used');
       A.append(actBtn('Scores', scoresDialog), actBtn('History', showHistory), actBtn('New game', () => newGameDialog(), 'primary'));
       return;
     }
@@ -229,7 +230,7 @@
         A.append(actBtn('Draw tile', () => resolve({ action: 'draw' }), 'primary', !ctx.canDraw, 'Tiles left: ' + v.bagCount));
         A.append(actBtn('Call Ra', () => resolve({ action: 'ra' }), ''));
         if (ctx.canGod) A.append(actBtn(`Use God (${v.tiles[0][4]})`, () => { mode = 'godpick'; render(); }, '', false, 'Take one tile from the block (not a God)'));
-        A.append(hintBtn());
+        if (opt.showHints) A.append(hintBtn());
         break;
       }
       case 'godpick':
@@ -255,7 +256,7 @@
         for (const s of legal) A.append(actBtn(h('span', { class: 'sunbtn' }, 'Bid ', h('b', {}, s)), () => resolve(s), 'primary'));
         if (!legal.length && !ctx.mustBid) S.textContent += ' None of your suns beats it.';
         A.append(actBtn('Pass', () => resolve(0), '', ctx.mustBid));
-        A.append(hintBtn());
+        if (opt.showHints) A.append(hintBtn());
         break;
       }
       case 'discard': {
@@ -270,8 +271,8 @@
       }
       case 'result':
         P.textContent = resultText;
-        S.textContent = '';
-        A.append(actBtn('Continue', () => { const p = pending; pending = null; if (p) p(); }, 'primary'));
+        S.textContent = 'Tap anywhere to continue.';
+        A.append(actBtn('Continue', continueResult, 'primary'));
         break;
       default: {
         const p = v.Turn;
@@ -281,6 +282,13 @@
       }
     }
   }
+
+  function continueResult() { if (mode !== 'result') return; const p = pending; pending = null; if (p) p(); }
+  // while an auction result shows, a click anywhere (outside dialogs and the header) continues
+  document.addEventListener('click', e => {
+    if (mode !== 'result' || e.timeStamp <= resultAt || !$('#dialogBack').hidden || e.target.closest('#top, #dialogBack')) return;
+    continueResult();
+  });
 
   function renderBlock(v) {
     const sl = $('#slots'); sl.innerHTML = '';
@@ -397,7 +405,10 @@
     if (info.over) row.className = '';
     tbl.append(row);
     const body = h('div', {});
+    const how = endedSummary(info, v);
+    if (how) body.append(h('p', { class: 'ended' }, how));
     if (info.over) body.append(h('p', {}, v.winner === 1 ? '🏆 You win!' : `🏆 ${v.names[v.winner - 1]} wins.`));
+    if (info.over && !hintsUsed) body.append(h('p', { class: 'nohints' }, v.winner === 1 ? '🎖 And you didn\'t use a single hint!' : '🎖 You played the whole game without a hint.'));
     body.append(tbl);
     body.append(h('p', { class: 'muted', style: 'font-size:12.5px' }, info.over ? 'Ties go to the highest single sun. Scores never drop below 0.'
       : 'Floods, Gods, Gold and civilizations are discarded now; Pharaohs, Niles and monuments carry over. Used suns turn face up for the next epoch.'));
@@ -405,6 +416,16 @@
     const btns = info.over ? [{ label: 'History', value: () => { showHistory(); return false; } }, { label: 'New game', cls: 'primary', value: () => { setTimeout(newGameDialog, 0); return true; } }, { label: 'Close', cls: '' }]
       : review ? [{ label: 'Close', cls: 'primary' }] : [{ label: `Start epoch ${info.epoch + 1}`, cls: 'primary' }];
     return dialog(info.over ? 'Game over' : `Epoch ${info.epoch} scoring`, body, btns);
+  }
+  // Who ended the epoch, and how
+  function endedSummary(info, v) {
+    const e = info.endedBy; if (!e) return '';
+    const you = e.p === 1, who = you ? 'You' : v.names[e.p - 1];
+    if (e.how === 'ra') {
+      const lost = e.blockCount ? ` The ${e.blockCount} tile${e.blockCount > 1 ? 's' : ''} on the block ${e.blockCount > 1 ? 'were' : 'was'} not auctioned.` : '';
+      return `${who} drew the last Ra tile (${v.MaxRa} of ${v.MaxRa}), ending the epoch at once.${lost}`;
+    }
+    return `${who} won an auction with ${you ? 'your' : 'their'} last face-up sun (the ${e.bid}), leaving no one with suns to bid.`;
   }
   // Whole-game scoring: every scored epoch, the current epoch so far, and the end-of-game outlook.
   function scoreTable(cols, rows) {
@@ -480,6 +501,7 @@
       cb('easy', 'Easy mode', 'The AI misjudges values a little and calls Ra less sharply (as in the original).'),
       cb('showScores', 'Show AI scores', 'Off: AI totals stay hidden until the end, as with face-down tablets.'),
       cb('showFDSuns', 'Show the values of AI face-down suns'),
+      cb('showHints', 'Show Hint buttons', 'Off: no Hint button while you play.'),
       h('label', {}, h('span', {}, 'AI speed'), speed));
     return dialog('Settings', body, [{ label: 'Done', cls: 'primary', value: () => { const n = name.value.trim(); if (n && n !== opt.name) { opt.name = n; save(); flow.setName(n); } render(); return true; } }]);
   }
@@ -515,7 +537,8 @@
     <h3>Game end only</h3>
     <ul><li>Monuments: 1 per different type up to 6, 10 for 7, 15 for 8, plus 5/10/15 for 3/4/5 of one type.</li>
     <li>Suns: highest total of all your suns +5, lowest −5.</li></ul>
-    <p>Scores never go below 0. <b>Hint</b> asks the AI what it would do.</p>`;
+    <p>Scores never go below 0. <b>Hint</b> asks the AI what it would do (you can hide it in Settings).</p>
+    <p class="muted" style="font-size:12.5px">Ra version 2.0. Ra was designed by Reiner Knizia (Alea, 1999); this is a fan-made program, ported from a Visual Basic game written in 2006–08, with its AI retuned in 2026. Tile images from the 2005 Uberplay edition.</p>`;
 
   // =========================================================================
   // Game control
@@ -523,7 +546,7 @@
   async function startGame(n, confirmed) {
     if (inGame && !confirmed && !(await confirmEnd())) return;
     opt.players = n; save();
-    inGame = true; bubbles = {}; bidSun = {}; raSlot = false; chosen = []; hintText = ''; mode = 'wait'; pending = null;
+    inGame = true; hintsUsed = 0; bubbles = {}; bidSun = {}; raSlot = false; chosen = []; hintText = ''; mode = 'wait'; pending = null;
     if (dlgResolve) dlgResolve(null);
     flow.setAI(opt.ai === 'improved' && window.RA_IMPROVED_AI ? window.RA_IMPROVED_AI[n] : null);
     flow.newGame(n).catch(e => { console.error(e); toast('Error: ' + e.message); });
@@ -586,6 +609,16 @@
   document.addEventListener('contextmenu', e => { if (lastPointer === 'touch' && e.target.closest('[title]')) e.preventDefault(); });
   window.addEventListener('scroll', hideTip, { passive: true });
 
+  // Load every tile image now, so a lost connection mid-game can't leave blank tiles,
+  // and register the service worker that keeps the whole game available offline.
+  const preloaded = Array.from({ length: 23 }, (_, i) => { const im = new Image(); im.src = `img/big${i}.png`; return im; });
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost'))
+    navigator.serviceWorker.register('sw.js').catch(() => { /* offline support is optional */ });
+
+  // keep the sticky panels below the banner, whose height changes with the hint box
+  new ResizeObserver(() => document.documentElement.style.setProperty('--banner-h', $('#banner').offsetHeight + 'px')).observe($('#banner'));
+
   render();
+  window.RA_PRELOADED = preloaded;
   window.RA_DEBUG = () => ({ view: flow.view(), mode, ctx, need, chosen, opt });
 })();
