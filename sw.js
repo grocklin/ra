@@ -2,8 +2,8 @@
 // keeps working (and the page can even be reloaded) without a connection.
 // Code and pages: network first, cache as fallback (updates arrive as soon as you're online).
 // Tile images: cache first (they never change).
-const CACHE = 'ra-2.0-v10';
-const V = '?v=10';
+const CACHE = 'ra-2.0-v11';
+const V = '?v=11';
 const FILES = ['./', 'index.html', 'style.css' + V, 'weights.js' + V, 'ra_engine.js' + V, 'ai_improved.js' + V, 'game.js' + V, 'app.js' + V, 'img/icon.png']
   .concat(Array.from({ length: 23 }, (_, i) => `img/big${i}.png`));
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
